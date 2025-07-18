@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import argparse
 import time
+import geoopt
 from datasets.data_utils import GraphDatasetLoader 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
@@ -184,7 +185,7 @@ def main():
         "--dataset",
         type=str,
         default="citeseer",
-        help=" ",
+        help="Dataset name",
     )
     parser.add_argument(
         "--seed",
@@ -203,6 +204,18 @@ def main():
         type=int,
         default=1,
         help="Number of parallel jobs (-1 for all cores)",
+    )
+    parser.add_argument(
+        "--manifold",
+        type=str,
+        default="lorentz",
+        help="Type of manifold (default:euclidean, options: 'euclidean', 'lorentz', 'poincare')",
+    )
+    parser.add_argument(
+        "--c",
+        type=float,
+        default=1.0,
+        help="Curvature (default: 1.0)",
     )
 
     args = parser.parse_args()
@@ -227,11 +240,33 @@ def main():
         # Wrap single graph in a list for uniform processing downstream
         dataset = [dataset]
 
-    # 2. Create perturbation and apply to dataset
+    # 2. Map features in the manifold space
+    if args.manifold == "euclidean":
+        manifold = geoopt.Euclidean()
+    elif args.manifold == "lorentz":
+        manifold = geoopt.Lorentz()
+    elif args.manifold == "poincare":
+        manifold = geoopt.PoincareBall(c=1.0)
+    else:
+        raise ValueError(f"Unknown manifold type: {args.manifold}")
+    
+    # 3. Project node features to manifold
+    for data_item in dataset:
+        if manifold.name == "euclidean":
+            data_item.x = data_item.x
+        else:   
+            print("Shape before projection",data_item.x.shape)  
+            data_item.x = manifold.expmap0(data_item.x.double())
+            print("Shape after projection",data_item.x.shape) 
+            print(f"Data object after projection: {dataset[0]}")
+
+
+    # 3. Create perturbation and apply to dataset
     perturbation = create_perturbation(args.perturbation, args.seed)
     transformed_dataset = apply_perturbation(dataset, perturbation)
+    print(f"Transformed dataset size: {len(transformed_dataset)}")
 
-    # 3. Create dataloader for batch processing
+    # 4. Create dataloader for batch processing
     dataloader = DataLoader(
         transformed_dataset,
         batch_size=args.batch_size,
