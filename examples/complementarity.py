@@ -253,10 +253,14 @@ def main():
     # 3. Project node features to manifold
     for data_item in dataset:
         if manifold.name == "euclidean":
-            data_item.x = data_item.x
+            data_item.x = data_item.x.double() 
         else:   
             print("Shape before projection",data_item.x.shape)  
-            data_item.x = manifold.expmap0(data_item.x.double())
+            data_item.x = data_item.x.double()  # Ensure features are in double precision
+            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) #origin of the space
+            zero_time_component = torch.zeros((data_item.x.size(0), 1))
+            tangent_vector = torch.cat((zero_time_component, data_item.x), dim=1)  # Node features in tangent space of the origin
+            data_item.x = manifold.expmap(origin, tangent_vector)  # Project to manifold
             print("Shape after projection",data_item.x.shape) 
             print(f"Data object after projection: {dataset[0]}")
 
