@@ -257,33 +257,33 @@ def main():
         else:   
             print("Shape before projection",data_item.x.shape)  
             data_item.x = data_item.x.double()  # Ensure features are in double precision
-            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) #origin of the space
-            zero_time_component = torch.zeros((data_item.x.size(0), 1))
+            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) # Origin of the space
+            zero_time_component = torch.zeros((data_item.x.size(0), 1))  # Zero time component to ensure the point live in the tangent space of the origin
             tangent_vector = torch.cat((zero_time_component, data_item.x), dim=1)  # Node features in tangent space of the origin
-            data_item.x = manifold.expmap(origin, tangent_vector)  # Project to manifold
+            data_item.x = manifold.expmap(origin, tangent_vector)  # Projection to manifold
             print("Shape after projection",data_item.x.shape) 
             print(f"Data object after projection: {dataset[0]}")
 
 
-    # 3. Create perturbation and apply to dataset
+    # 4. Create perturbation and apply to dataset
     perturbation = create_perturbation(args.perturbation, args.seed)
     transformed_dataset = apply_perturbation(dataset, perturbation)
     print(f"Transformed dataset size: {len(transformed_dataset)}")
 
-    # 4. Create dataloader for batch processing
+    # 5. Create dataloader for batch processing
     dataloader = DataLoader(
         transformed_dataset,
         batch_size=args.batch_size,
         shuffle=False,
     )
 
-    # 4. Create complementarity functor
+    # 6. Create complementarity functor
     functor = create_complementarity_functor(n_jobs=args.n_jobs)
 
-    # 5. Compute complementarity scores
+    # 7. Compute complementarity scores
     scores = compute_complementarity(dataloader, functor)
 
-    # 6. Calculate and print statistics
+    # 8. Calculate and print statistics
     mean_score = np.mean(scores)
     std_score = np.std(scores)
 
