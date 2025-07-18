@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import argparse
 import time
+from datasets.data_utils import GraphDatasetLoader 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 
@@ -182,8 +183,8 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="MUTAG",
-        help="Name of the TU dataset to use (e.g., MUTAG, ENZYMES, PROTEINS)",
+        default="citeseer",
+        help=" ",
     )
     parser.add_argument(
         "--seed",
@@ -212,8 +213,19 @@ def main():
 
     # 1. Load dataset
     print(f"Loading {args.dataset} dataset...")
-    dataset = TUDataset(root="/tmp/TUDataset", name=args.dataset)
-    print(f"Dataset loaded: {len(dataset)} graphs")
+    loader = GraphDatasetLoader(
+        dataset_name=args.dataset
+    )
+    dataset = loader.load()
+    print(f"Type: {type(dataset)}")
+    if isinstance(dataset, list):
+        print(f"Type of first item: {type(dataset[0])}")
+        print(f"Data object: {dataset[0]}")
+    else:
+        print("Dataset is a single graph.")
+        print(f"Data object: {dataset}")
+        # Wrap single graph in a list for uniform processing downstream
+        dataset = [dataset]
 
     # 2. Create perturbation and apply to dataset
     perturbation = create_perturbation(args.perturbation, args.seed)
