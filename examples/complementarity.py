@@ -96,7 +96,7 @@ def apply_perturbation(dataset, perturbation):
     return transformed_dataset
 
 
-def create_complementarity_functor(n_jobs=1):
+def create_complementarity_functor(n_jobs=1, **kwargs):
     """
     Create a ComplementarityFunctor with standard parameters.
 
@@ -112,7 +112,7 @@ def create_complementarity_functor(n_jobs=1):
     """
     return ComplementarityFunctor(
         # Metric for node features (pairwise Euclidean distance)
-        feature_metric="euclidean",
+        feature_metric= kwargs.get("feature_metric", "euclidean"),
         # Metric for graph structure (shortest path distance between nodes)
         graph_metric="shortest_path_distance",
         # Method to compare the two metric spaces
@@ -121,6 +121,8 @@ def create_complementarity_functor(n_jobs=1):
         n_jobs=n_jobs,
         # Norm used by the comparator
         norm="L11",
+        # Manifold type for node features (if applicable)
+        manifold=kwargs.get("manifold", None),
     )
 
 
@@ -196,7 +198,7 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=32,
+        default=1,
         help="Batch size for dataloader",
     )
     parser.add_argument(
@@ -243,18 +245,21 @@ def main():
     # 2. Map features in the manifold space
     if args.manifold == "euclidean":
         manifold = geoopt.Euclidean()
+        feature_metric = "euclidean"
     elif args.manifold == "lorentz":
         manifold = geoopt.Lorentz()
+        feature_metric = "custom_manifold"
     elif args.manifold == "poincare":
         manifold = geoopt.PoincareBall(c=1.0)
+        feature_metric = "custom_manifold"
     else:
         raise ValueError(f"Unknown manifold type: {args.manifold}")
     
     # 3. Project node features to manifold
     for data_item in dataset:
-        if manifold.name == "euclidean":
+        if isinstance(manifold, geoopt.Euclidean):
             data_item.x = data_item.x.double() 
-        else:   
+        elif isinstance(manifold, geoopt.Lorentz) or isinstance(manifold, geoopt.PoincareBall):   
             print("Shape before projection",data_item.x.shape)  
             data_item.x = data_item.x.double()  # Ensure features are in double precision
             origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) # Origin of the space
@@ -278,7 +283,7 @@ def main():
     )
 
     # 6. Create complementarity functor
-    functor = create_complementarity_functor(n_jobs=args.n_jobs)
+    functor = create_complementarity_functor(feature_metric=feature_metric, n_jobs=args.n_jobs, manifold=manifold, c=args.c)
 
     # 7. Compute complementarity scores
     scores = compute_complementarity(dataloader, functor)

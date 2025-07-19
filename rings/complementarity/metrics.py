@@ -3,8 +3,10 @@
 import sklearn
 import warnings
 
-from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.metrics.pairwise import pairwise_distances as skl_pairwise_distances
+from sklearn.metrics.pairwise import _VALID_METRICS
 
+import torch
 import numpy as np
 import networkx as nx
 
@@ -70,10 +72,8 @@ def lift_attributes(X, metric, n_jobs, **kwargs):
     """
     operator = getattr(supported_metrics, metric, None)
 
-    if metric in sklearn.metrics.pairwise._VALID_METRICS:
-        operator = standard_feature_metrics
-    elif operator is None:
-        raise RuntimeError(f"Unsupported metric: {metric}")
+    if operator is None:
+        operator = generalized_feature_metrics
 
     return operator(X, metric=metric, n_jobs=n_jobs, **kwargs)
 
@@ -194,11 +194,63 @@ def standard_feature_metrics(X, **kwargs):
      [2. 0. 1.]
      [1. 1. 0.]]
     """
-    return pairwise_distances(
+    return skl_pairwise_distances(
         X,
         metric=kwargs.get("metric", "euclidean"),
         n_jobs=kwargs.get("n_jobs", None),
     )
+
+def generalized_feature_metrics(X, **kwargs):
+    """
+    Calculate pairwise distances between node features.
+    Compute pairwise distances either via sklearn metrics or a custom manifold.
+
+    Parameters
+    ----------
+    X : np.ndarray or torch.Tensor
+        Input data.
+    metric : str
+        If metric == "custom_manifold", use `manifold.dist()`.
+        Else, fallback to sklearn metrics.
+    manifold : object, optional
+        Manifold object with a  (e.g., geoopt.Lorentz) `.dist()` method, required if metric == "custom_manifold".
+    **kwargs :
+        Extra keyword arguments.
+
+    Returns
+    -------
+    Distance matrix
+    """
+    
+    metric = kwargs.get("metric", "euclidean")
+
+    if metric == "custom_manifold":
+        if not getattr(generalized_feature_metrics, "_printed", False):
+            print("Computing distances using custom manifold...")
+            generalized_feature_metrics._printed = True
+        manifold = kwargs.get("manifold", None)
+        if manifold is None:
+            raise ValueError("Must provide manifold when metric='custom_manifold'")
+
+        if isinstance(X, np.ndarray):
+            X = torch.tensor(X, dtype=torch.float32)
+
+        X1 = X.unsqueeze(1)
+        X2 = X.unsqueeze(0)
+        return manifold.dist(X1, X2).detach().cpu().numpy()
+
+    elif metric in _VALID_METRICS:
+        if not getattr(generalized_feature_metrics, "_printed", False):
+            print("Computing distances using sklearn metrics...")
+            generalized_feature_metrics._printed = True
+
+        return skl_pairwise_distances(
+            X, 
+            metric=metric, 
+            n_jobs=kwargs.get("n_jobs", None)
+            )
+    else:
+        raise ValueError(f"Unsupported metric: {metric}")
 
 
 #  ╭──────────────────────────────────────────────────────────╮
