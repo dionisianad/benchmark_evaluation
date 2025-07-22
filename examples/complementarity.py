@@ -247,10 +247,10 @@ def main():
         manifold = geoopt.Euclidean()
         feature_metric = "euclidean"
     elif args.manifold == "lorentz":
-        manifold = geoopt.Lorentz()
+        manifold = geoopt.Lorentz(k=args.c)
         feature_metric = "custom_manifold"
     elif args.manifold == "poincare":
-        manifold = geoopt.PoincareBall(c=1.0)
+        manifold = geoopt.PoincareBall(c=args.c)
         feature_metric = "custom_manifold"
     else:
         raise ValueError(f"Unknown manifold type: {args.manifold}")
@@ -262,12 +262,22 @@ def main():
         elif isinstance(manifold, geoopt.Lorentz) or isinstance(manifold, geoopt.PoincareBall):   
             print("Shape before projection",data_item.x.shape)  
             data_item.x = data_item.x.double()  # Ensure features are in double precision
-            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) # Origin of the space
-            zero_time_component = torch.zeros((data_item.x.size(0), 1))  # Zero time component to ensure the point live in the tangent space of the origin
-            tangent_vector = torch.cat((zero_time_component, data_item.x), dim=1)  # Node features in tangent space of the origin
-            data_item.x = manifold.expmap(origin, tangent_vector)  # Projection to manifold
+            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1), dtype=torch.float64) # Origin of the space
+            tangent_vector = manifold.proju(origin, data_item.x)  # Project features to tangent space at origin
+            data_item.x = manifold.projx(manifold.expmap(origin, tangent_vector))  # Projection to manifold
             print("Shape after projection",data_item.x.shape) 
             print(f"Data object after projection: {dataset[0]}")
+            
+        # elif isinstance(manifold, geoopt.Lorentz) or isinstance(manifold, geoopt.PoincareBall):   
+        #     print("Shape before projection",data_item.x.shape)  
+        #     data_item.x = data_item.x.double()  # Ensure features are in double precision
+        #     origin = torch.zeros(data_item.x.size(0), data_item.x.size(1) + 1, dtype=torch.float64) # Origin of the space
+        #     zero_time_component = torch.zeros((data_item.x.size(0), 1))  # Zero time component to ensure the point live in the tangent space of the origin
+        #     tangent_vector = torch.cat((zero_time_component, data_item.x), dim=1)  # Node features in tangent space of the origin
+        #     data_item.x = manifold.expmap(origin, tangent_vector)  # Projection to manifold
+        #     print("Shape after projection",data_item.x.shape) 
+        #     print(f"Data object after projection: {dataset[0]}")
+
 
 
     # 4. Create perturbation and apply to dataset
@@ -288,21 +298,32 @@ def main():
     # 7. Compute complementarity scores
     scores = compute_complementarity(dataloader, functor)
 
-    # 8. Calculate and print statistics
+    # 8. Calculate and print statisti
     mean_score = np.mean(scores)
     std_score = np.std(scores)
 
-    # Print results
-    print("\n" + "=" * 60)
-    print(f"📊 Results Summary".center(60))
-    print("=" * 60)
-    print(f"📁 Dataset:         {args.dataset}")
-    print(f"🧪 Perturbation:    {args.perturbation}")
-    print("-" * 60)
-    print(f"✅ Mean Complementarity:  {mean_score:.4f}")
-    print(f"📉 Std. Deviation:        {std_score:.4f}")
-    print(f"📈 Number of Graphs:      {len(scores)}")
-    print("=" * 60 + "\n")
+
+    output_file = f"/home/dionisia/benchmark_evaluation/results/complementarity_scores_{args.dataset}_{args.manifold}_{args.c}.txt"
+
+    summary = (
+        "\n" + "=" * 60 + "\n" +
+        f"{'📊 Results Summary'.center(60)}\n" +
+        "=" * 60 + "\n" +
+        f"📁 Dataset:         {args.dataset}\n" +
+        f"🧪 Perturbation:    {args.perturbation}\n" +
+        "-" * 60 + "\n" +
+        f"✅ Mean Complementarity:  {mean_score:.4f}\n" +
+        f"📉 Std. Deviation:        {std_score:.4f}\n" +
+        f"📈 Number of Graphs:      {len(scores)}\n" +
+        "=" * 60 + "\n\n"
+    )
+
+    # Print to console
+    print(summary)
+
+    # Save to file
+    with open(output_file, "w") as f:
+        f.write(summary)
 
 
 if __name__ == "__main__":
