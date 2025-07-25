@@ -261,13 +261,22 @@ def main():
             data_item.x = data_item.x.double() 
         elif isinstance(manifold, geoopt.Lorentz) or isinstance(manifold, geoopt.PoincareBall):   
             print("Shape before projection",data_item.x.shape)  
-            data_item.x = data_item.x.double()  # Ensure features are in double precision
-            origin = torch.zeros(data_item.x.size(0), data_item.x.size(1), dtype=torch.float64) # Origin of the space
-            tangent_vector = manifold.proju(origin, data_item.x)  # Project features to tangent space at origin
-            data_item.x = manifold.projx(manifold.expmap(origin, tangent_vector))  # Projection to manifold
-            print("Shape after projection",data_item.x.shape) 
-            print(f"Data object after projection: {dataset[0]}")
-            
+            data_item.x = data_item.x.double() # Ensure features are in double precision
+            print("Node feature:", data_item.x)
+            if isinstance(manifold, geoopt.Lorentz):
+                zeros = torch.zeros(data_item.x.size(0), data_item.x.size(1) - 1, dtype=torch.float64)  # Zero vector for time component
+                ones = torch.ones(data_item.x.size(0), 1, dtype=torch.float64)  # One vector for time component
+                origin = torch.cat([ones, zeros], dim=1)  # Origin of the space
+                tangent_vector = manifold.proju(origin, data_item.x)  # Project features to tangent space at origin
+                data_item.x = manifold.projx(manifold.expmap(origin, tangent_vector))  # Projection to manifold
+                print("Shape after projection",data_item.x.shape) 
+                print(f"Data object after projection: {dataset[0]}")
+            elif isinstance(manifold, geoopt.PoincareBall):
+                origin = torch.zeros(data_item.x.size(0), data_item.x.size(1), dtype=torch.float64)
+                data_item.x = manifold.projx(manifold.expmap(origin, data_item.x))  # Projection to manifold
+                print("Shape after projection",data_item.x.shape) 
+                print("Node feature:", data_item.x)
+                
         # elif isinstance(manifold, geoopt.Lorentz) or isinstance(manifold, geoopt.PoincareBall):   
         #     print("Shape before projection",data_item.x.shape)  
         #     data_item.x = data_item.x.double()  # Ensure features are in double precision

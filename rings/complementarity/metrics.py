@@ -234,10 +234,24 @@ def generalized_feature_metrics(X, **kwargs):
 
         if isinstance(X, np.ndarray):
             X = torch.tensor(X, dtype=torch.float32)
+            print("X:", X.shape)
 
         X1 = X.unsqueeze(1)
         X2 = X.unsqueeze(0)
-        return manifold.dist(X1, X2).detach().cpu().numpy()
+
+
+        dist =  manifold.dist(X1, X2).detach().cpu().numpy()
+
+        print("Dist:", dist.shape)
+
+        if np.isinf(dist).any():
+            print("Warning: infs detected in distance matrix!")
+            print("NaN locations:", np.argwhere(np.isinf(dist)))
+            print("Distance matrix:\n", dist)
+
+        return dist #manifold.dist(X1, X2).detach().cpu().numpy()
+
+
 
     elif metric in _VALID_METRICS:
         if not getattr(generalized_feature_metrics, "_printed", False):
